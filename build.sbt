@@ -5,14 +5,14 @@ name := "akka-memcached"
 
 version := "0.91"
 
-scalaVersion := "2.9.1"
+scalaVersion := "2.10.2"
 
 libraryDependencies ++= Seq(
  	"log4j" % "log4j" % "1.2.14",
-	"jboss" % "jboss-serialization" % "1.0.3.GA",
+	"jboss" % "jboss-serialization" % "4.2.2.GA",
 	"trove" % "trove" % "1.0.2",
-	"com.typesafe.akka" % "akka-actor" % "2.0.3",
-  	"org.specs2" %% "specs2" % "1.12.1" % "test",
+  "com.typesafe.akka"   %%  "akka-actor"    % "2.2.0-RC1",
+  "org.specs2" %% "specs2" % "2.0" % "test",
     "com.google.code.simple-spring-memcached" % "spymemcached" % "2.8.1",
     "junit" % "junit" % "4.10",
     "junitperf" % "junitperf" % "1.8",

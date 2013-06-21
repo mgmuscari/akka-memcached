@@ -4,10 +4,10 @@
 
 package com.klout.akkamemcached
 
-import akka.dispatch.Future
+import scala.concurrent.Future
 import akka.actor._
-import akka.util.Duration
-import akka.util.duration._
+import scala.concurrent.duration.Duration
+import scala.concurrent.duration._
 import akka.pattern.ask
 import akka.util.Timeout
 import akka.util.ByteString
@@ -63,6 +63,8 @@ class RealMemcachedClient(hosts: List[(String, Int)], connectionsPerServer: Int 
     implicit val timeout = Timeout(30 seconds)
 
     val system = ActorSystem()
+
+    import system.dispatcher
 
     val poolActor = system.actorOf(Props(new PoolActor(hosts, connectionsPerServer)), name = encode("Pool Actor", "UTF-8"))
 

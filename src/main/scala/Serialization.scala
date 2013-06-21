@@ -18,61 +18,7 @@ import scala.collection.JavaConversions._
  * to serialize and deserialize data.
  */
 object Serialization {
-
-    /**
-     * Import this serializer to use JBoss serialization with Memcached
-     */
-    implicit def JBoss[T <: Any] = new Serializer[T] {
-
-        /**
-         * Uses a connection or stream to compute a result, and closes
-         * the connection once the result is computed
-         */
-        def using[C <: Closeable, V](closeables: C*)(f: () => V): V = {
-            try {
-                f.apply
-            } finally {
-                for (closeable <- closeables) { safely { closeable.close() } }
-            }
-        }
-
-        /**
-         * Swallows any exception
-         */
-        def safely(f: => Any) {
-            try { f } catch { case error => {} }
-        }
-
-        def serialize(o: T): ByteString = {
-            Option(o) match {
-                case None => throw new NullPointerException("Can't serialize null")
-                case Some(o) =>
-                    try {
-                        val bos = new ByteArrayOutputStream
-                        val os = new JBossObjectOutputStream(bos)
-
-                        val byteArray = using (bos, os) {
-                            os writeObject o
-                            bos.toByteArray
-                        }
-                        ByteString(byteArray)
-                    } catch {
-                        case e: IOException => throw new IllegalArgumentException("Non-serializable object", e);
-                    }
-            }
-        }
-
-        def deserialize(in: Array[Byte]): T = {
-            val bis = new ByteArrayInputStream(in)
-            val is = new JBossObjectInputStream(bis)
-            val obj = using(bis, is) {
-                is readObject
-            }
-            obj.asInstanceOf[T]
-        }
-    }
 }
-
 /**
  * Helper object used by RealMemcachedClient for serialization. Requires an implicit
  * serializer within it's scope

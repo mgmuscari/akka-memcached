@@ -6,13 +6,19 @@ package com.klout.akkamemcached
 
 import ActorTypes._
 
-import akka.actor._
+import akka.io.{ IO, Tcp }
+//import akka.actor._
+import akka.actor.ActorRef
+import akka.actor.Actor
+import akka.actor.OneForOneStrategy
+import akka.routing.RoundRobinRouter
+import akka.actor.Props
 import akka.actor.SupervisorStrategy._
-import akka.dispatch.Future
+import scala.concurrent.Future
 import akka.event.Logging
 import akka.routing._
 import akka.util.ByteString
-import akka.util.duration._
+import scala.concurrent.duration._
 import com.google.common.hash.Hashing._
 import com.klout.akkamemcached.Protocol._
 import java.io._
@@ -36,6 +42,8 @@ object ActorTypes {
  * from the MemcachedClient to the IOActors.
  */
 class PoolActor(hosts: List[(String, Int)], connectionsPerServer: Int) extends Actor {
+
+    import context.dispatcher
 
     val hashFunction = goodFastHash(32)
 
@@ -182,6 +190,8 @@ class PoolActor(hosts: List[(String, Int)], connectionsPerServer: Int) extends A
  */
 class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends Actor {
 
+    import context.system
+
     /**
      * The initial amount of time that the client will wait before trying
      * to reconnect to the memcached server after losing a connection
@@ -206,7 +216,7 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
     val maxReconnectAttempts = 3
 
     val log = Logging(context.system, this)
-    var connection: IO.SocketHandle = _
+    var connection: ActorRef = _
 
     /**
      * The maximum number of keys that can be queried in a single multiget
@@ -228,7 +238,8 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
      * Opens a single connection to the Memcached server
      */
     override def preStart {
-        connection = IOManager(context.system) connect new InetSocketAddress(host, port)
+        connection = IO(Tcp)
+        connection ! Tcp.Connect(new InetSocketAddress(host, port))
         log.debug("IoActor starting on " + host + ":" + port)
     }
 
@@ -252,7 +263,7 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
     def writeGetCommandToMemcachedIfPossible() {
         if (!awaitingResponseFromMemcached) {
             if (currentSet.size > 0) {
-                connection write GetCommand(currentSet toSet).toByteString
+                connection ? GetCommand(currentSet toSet).toByteString
                 awaitingResponseFromMemcached = true
             } else {
                 awaitingResponseFromMemcached = false
@@ -286,7 +297,7 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
      * This Iteratee processes the responses from Memcached and sends messages back to
      * the IoActor whenever it has parsed a result
      */
-    val iteratee = IO.IterateeRef.async(new Iteratees(self).processInput)(context.dispatcher)
+    val iteratee = connection.IterateeRef.async(new Iteratees(self).processInput)(context.dispatcher)
 
     /**
      * If this actor is awaiting a response from Memcached, then it will not
@@ -309,7 +320,8 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
             Thread.sleep(reconnectDelayMillis)
 
             /* Attempt to reconnect */
-            connection = IOManager(context.system) connect new InetSocketAddress(host, port)
+            connection = IO(Tcp)
+            connection ! Tcp.Connect(new InetSocketAddress(host, port))
 
             /* Write the version command over the connection, hoping to get a response */
             connection write VersionCommand.byteString
